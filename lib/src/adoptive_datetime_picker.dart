@@ -67,6 +67,9 @@ class AdoptiveCalendar extends StatefulWidget {
   /// disable the dates before today
   final bool disablePastDates;
 
+  /// disable the dates after today
+  final bool disableFutureDates;
+
   /// Month Year Mode
   final CupertinoDatePickerMode monthYearMode;
 
@@ -107,6 +110,7 @@ class AdoptiveCalendar extends StatefulWidget {
     this.onSelection,
     this.contentPadding,
     this.disablePastDates = false,
+    this.disableFutureDates = false,
     this.monthYearMode = CupertinoDatePickerMode.monthYear,
     this.monthYearOrder,
     this.showTimePickerDivider = true,
@@ -117,6 +121,8 @@ class AdoptiveCalendar extends StatefulWidget {
             'You cannot use minuteInterval when datePickerOnly is true. If you want to use minuteInterval then remove datePickerOnly'),
         assert(!(datePickerOnly && use24hFormat),
             'You cannot use use24hFormat when datePickerOnly is true. If you want to use use24hFormat then remove datePickerOnly'),
+        assert(!(disablePastDates && disableFutureDates),
+            'You cannot use disablePastDates when disableFutureDates is true and vice versa. If you want to use disablePastDates then remove disableFutureDates or vice versa.'),
         assert(
           monthYearMode == CupertinoDatePickerMode.date ||
               monthYearMode == CupertinoDatePickerMode.monthYear,
@@ -151,27 +157,28 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
 
     super.initState();
 
-    _resetIfBeforeCurrentDate();
+    _resetIfOutOfBounds();
   }
 
-  void _resetIfBeforeCurrentDate() {
+  void _resetIfOutOfBounds() {
     final now = widget.initialDate;
-    if (widget.disablePastDates &&
-        _selectedDate != null &&
-        _selectedDate!.isBefore(now)) {
-      _selectedDate = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        _selectedDate!.hour,
-        _selectedDate!.minute,
-      );
-      returnDate = _selectedDate;
-      if (widget.onSelection != null) {
-        widget.onSelection!(returnDate);
+
+    if (_selectedDate != null) {
+      if (widget.disablePastDates && _selectedDate!.isBefore(now) ||
+          widget.disableFutureDates && _selectedDate!.isAfter(now)) {
+        _selectedDate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          now.hour,
+          now.minute,
+        );
       }
-      setState(() {});
     }
+
+    returnDate = _selectedDate;
+    widget.onSelection?.call(returnDate);
+    setState(() {});
   }
 
   @override
@@ -218,7 +225,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                 if (widget.onSelection != null) {
                   widget.onSelection!(returnDate);
                 }
-                _resetIfBeforeCurrentDate();
+                _resetIfOutOfBounds();
 
                 setState(() {});
               },
@@ -244,7 +251,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                     if (widget.onSelection != null) {
                       widget.onSelection!(returnDate);
                     }
-                    _resetIfBeforeCurrentDate();
+                    _resetIfOutOfBounds();
 
                     setState(() {});
                   },
@@ -304,17 +311,22 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                                 DateTime(_selectedDate!.year,
                                         _selectedDate!.month + 1, 0)
                                     .day &&
-                            (!widget.disablePastDates ||
-                                currentDate.isAfter(widget.initialDate
-                                    .subtract(const Duration(days: 1))) ||
-                                currentDate
-                                    .isAtSameMomentAs(widget.initialDate));
+                            (widget.disablePastDates
+                                ? currentDate.isAfter(widget.initialDate
+                                        .subtract(const Duration(days: 1))) ||
+                                    currentDate
+                                        .isAtSameMomentAs(widget.initialDate)
+                                : true) &&
+                            (widget.disableFutureDates
+                                ? currentDate.isBefore(widget.initialDate) ||
+                                    currentDate
+                                        .isAtSameMomentAs(widget.initialDate)
+                                : true);
 
                         // Determine the color of the date
                         Color? textColor = day <= 0 ||
                                 day >
-                                    DateTime(_selectedDate!.year,
-                                            _selectedDate!.month + 1, 0)
+                                    DateTime(_selectedDate!.year, _selectedDate!.month + 1, 0)
                                         .day
                             ? Colors.transparent
                             : _isSelectedDay(day)
@@ -330,7 +342,12 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                                             widget.initialDate.toLocal())
                                         ? widget.fontColor
                                         : Colors.grey)
-                                    : widget.fontColor;
+                                    : (widget.disableFutureDates &&
+                                            (currentDate.isAfter(widget.initialDate.toLocal()) ||
+                                                currentDate.isAtSameMomentAs(
+                                                    widget.initialDate.toLocal())))
+                                        ? Colors.grey
+                                        : widget.fontColor;
 
                         return GestureDetector(
                           onTap: () {
@@ -346,7 +363,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                                 if (widget.onSelection != null) {
                                   widget.onSelection!(returnDate);
                                 }
-                                _resetIfBeforeCurrentDate();
+                                _resetIfOutOfBounds();
                               });
                             }
                           },
@@ -400,6 +417,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
             ]);
           }
           returnDate ??= _selectedDate;
+          _resetIfOutOfBounds();
           Navigator.pop(context, returnDate);
         },
         child: Text(
@@ -504,6 +522,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                           if (widget.onSelection != null) {
                             widget.onSelection!(returnDate);
                           }
+                          _resetIfOutOfBounds();
                           setState(() {});
                         },
                   child: Container(
@@ -553,6 +572,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
                           if (widget.onSelection != null) {
                             widget.onSelection!(returnDate);
                           }
+                          _resetIfOutOfBounds();
                           setState(() {});
                         },
                   child: Container(
@@ -849,7 +869,7 @@ class _AdoptiveCalendarState extends State<AdoptiveCalendar> {
       if (widget.onSelection != null) {
         widget.onSelection!(returnDate);
       }
-      _resetIfBeforeCurrentDate();
+      _resetIfOutOfBounds();
     });
   }
 
